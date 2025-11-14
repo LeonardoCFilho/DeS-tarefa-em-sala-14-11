@@ -11,75 +11,51 @@ import datetime
 DB_PASSWORD = "admin123"
 API_KEY = "sk-1234567890abcdef"
 
-# Função gigante com múltiplas responsabilidades
-def processar_internacao(request):
-    if request.method == 'GET' or request.method == 'POST' or request.method == 'PUT':
-        try:
-            # SQL Injection - VULNERABILIDADE CRÍTICA
-            paciente_id = request.GET.get('id')
-            query = "SELECT * FROM pacientes WHERE id = " + paciente_id
-            
-            # Código duplicado
-            if request.user.is_authenticated:
-                if request.user.is_staff:
-                    if request.user.has_perm('view_paciente'):
-                        if request.user.groups.filter(name='Auditores').exists():
-                            # Complexidade ciclomática muito alta
-                            dados = []
-                            for i in range(100):
-                                for j in range(100):
-                                    if i > 50:
-                                        if j > 50:
-                                            if i + j > 150:
-                                                dados.append(i * j)
-                                            else:
-                                                dados.append(i + j)
-                                        else:
-                                            dados.append(i - j)
-                                    else:
-                                        dados.append(i)
-            
-            # Variáveis não utilizadas
-            x = 10
-            y = 20
-            z = 30
-            nome_completo = "João da Silva"
-            endereco = "Rua ABC, 123"
-            telefone = "11999999999"
-            
-            # Código morto (nunca executado)
-            if False:
-                print("Isso nunca vai executar")
-                resultado = processar_dados_especiais()
-            
-            # Magic numbers sem contexto
-            if len(dados) > 42:
-                resultado = dados[0] * 3.14159
-                valor_final = resultado / 2.71828
-            
-            # Exceções genéricas demais
-        except:
-            pass
-        
-        # Sem validação de entrada
-        paciente_nome = request.POST.get('nome')
-        paciente_cpf = request.POST.get('cpf')
-        
-        # Concatenação de strings em loop (ineficiente)
-        relatorio = ""
-        for item in range(1000):
-            relatorio = relatorio + "Item: " + str(item) + "\n"
-        
-        # Código duplicado novamente
-        if request.user.is_authenticated:
-            if request.user.is_staff:
-                if request.user.has_perm('view_paciente'):
-                    if request.user.groups.filter(name='Auditores').exists():
-                        print("Usuário autorizado")
-        
-        # Retorno sem tratamento
-        return HttpResponse("OK")
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 
+def _usuario_e_auditor(user):
+    """Verifica se usuário tem permissões."""
+    return (
+        user.is_authenticated and
+        user.is_staff and
+        user.has_perm('view_paciente') and
+        user.groups.filter(name='Auditores').exists()
+    )
+
+def _processar_dados_matriz():
+    """Processa dados da matriz."""
+    dados = []
+    for i in range(100):
+        for j in range(100):
+            valor = _calcular_valor_celula(i, j)
+            dados.append(valor)
+    return dados
+
+def _calcular_valor_celula(i, j):
+    """Calcula valor de uma célula."""
+    if i > 50 and j > 50 and i + j > 150:
+        return i * j
+    elif i > 50 and j > 50:
+        return i + j
+    elif i > 50:
+        return i - j
+    return i
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def processar_internacao(request):
+    """Processa internação de forma organizada."""
+    if not _usuario_e_auditor(request.user):
+        raise PermissionDenied("Sem permissão")
+    
+    try:
+        dados = _processar_dados_matriz()
+        return JsonResponse({'dados': dados})
+    
+    except ValidationError as e:
+        return JsonResponse({'erro': str(e)}, status=400)
+    
 
 # Função com nome ruim e sem documentação
 def f1(a, b, c, d, e):
@@ -174,20 +150,42 @@ class GerenciadorHospital:
             return False
 
 
-# Função com path traversal - VULNERABILIDADE
+import os
+from django.http import Http404
+
 def ler_arquivo(request):
     filename = request.GET.get('file')
-    # Permite ler qualquer arquivo do sistema!
-    with open('/var/www/' + filename) as f:
+    
+    # Validar e sanitizar o caminho
+    base_dir = '/var/www/uploads/'
+    filepath = os.path.normpath(os.path.join(base_dir, filename))
+    
+    # Garantir que o arquivo está dentro do diretório permitido
+    if not filepath.startswith(base_dir):
+        raise Http404("Arquivo não encontrado")
+    
+    if not os.path.exists(filepath):
+        raise Http404("Arquivo não encontrado")
+    
+    with open(filepath, 'r') as f:
         content = f.read()
+    
     return HttpResponse(content)
 
 
-# Uso de eval - VULNERABILIDADE CRÍTICA
+import ast
+import operator
+
 def calcular_expressao(request):
     expressao = request.GET.get('expr')
-    resultado = eval(expressao)  # Permite execução arbitrária de código!
-    return HttpResponse(str(resultado))
+    
+    # Usar ast.literal_eval para expressões seguras
+    try:
+        # Permitir apenas operações matemáticas simples
+        resultado = ast.literal_eval(expressao)
+        return HttpResponse(str(resultado))
+    except (ValueError, SyntaxError):
+        return HttpResponse("Expressão inválida", status=400)
 
 
 # Código sem tratamento de exceção
